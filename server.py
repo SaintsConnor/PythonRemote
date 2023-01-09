@@ -1,34 +1,52 @@
 import socket
-import subprocess
 
-# Create a socket
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+class Server:
+    def __init__(self):
+        # Create a TCP/IP socket
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-# Bind the socket to a local address and port
-port = input("Enter port desired for use (Reccomended over 9001. This will be required when connecting via the client): ") 
-s.bind(('localhost', port))
+        # Bind the socket to the port
+        server_address = ('localhost', 10000)
+        print('Starting up on {} port {}'.format(*server_address))
+        self.sock.bind(server_address)
 
-# Start listening for incoming connections
-s.listen()
+        # Listen for incoming connections
+        self.sock.listen(1)
 
-while True:
-    # Accept an incoming connection
-    conn, addr = s.accept()
+    def run(self):
+        while True:
+            # Wait for a connection
+            print('Waiting for a connection...')
+            connection, client_address = self.sock.accept()
+            try:
+                # Receive the username
+                username = connection.recv(1024).decode()
 
-    # Receive data from the client
-    data = conn.recv(1024).decode()
+                # Send the password prompt
+                connection.send('Enter your password: '.encode())
 
-    # If the client sends the "disconnect" command, close the connection and go back to listening for incoming connections
-    if data == 'disconnect':
-        conn.close()
-        continue
+                # Receive the password
+                password = connection.recv(1024).decode()
 
-    # Execute the command received from the client
-    output = subprocess.run(data, capture_output=True)
+                # Check the password
+                if self.verify_password(password):
+                    # Grant access
+                    connection.send('Access granted.'.encode())
 
-    # Send the output of the command back to the client
-    conn.sendall(output.stdout)
+                    # Receive commands and execute them
+                    while True:
+                        command = connection.recv(1024).decode()
+                        if command == 'exit':
+                            break
+                        result = self.execute_command(command)
+                        connection.send(result.encode())
+                else:
+                    # Deny access
+                    connection.send('Access denied.'.encode())
 
-# Close the connection
-conn.close()
+            finally:
+                # Clean up the connection
+                connection.close()
 
+server = Server()
+server.run()
